@@ -13,18 +13,29 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.db import create_session_factory
 from app.main import create_app
+from app.services.chat_store import ChatStore
 from app.state import AppState
 
 
 @pytest.fixture
 def settings() -> Settings:
-    return Settings(ollama_host="http://ollama.test:11434", ollama_model="test-model:latest")
+    return Settings(
+        ollama_host="http://ollama.test:11434",
+        ollama_model="test-model:latest",
+        chat_db_path=":memory:",
+    )
 
 
 @pytest.fixture
 def state() -> AppState:
     return AppState()
+
+
+@pytest.fixture
+def chat_store() -> ChatStore:
+    return ChatStore(create_session_factory(":memory:"))
 
 
 @pytest.fixture

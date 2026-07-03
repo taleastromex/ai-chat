@@ -32,7 +32,7 @@ COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN mkdir -p /app/logs && chown -R fable:fable /app
+RUN mkdir -p /app/logs /app/data && chown -R fable:fable /app
 
 USER fable
 

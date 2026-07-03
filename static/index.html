@@ -72,6 +72,37 @@
       padding: 0 8px;
     }
 
+    /* ── New chat button ── */
+    .new-chat-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; background: var(--accent); border: none; color: #fff;
+      border-radius: 10px; padding: 10px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: background .2s;
+    }
+    .new-chat-btn:hover { background: var(--accent-h); }
+
+    /* ── Chat list ── */
+    .chat-list { display: flex; flex-direction: column; gap: 4px; }
+    .chat-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 10px; border-radius: 8px; cursor: pointer;
+      border: 1px solid transparent; transition: background .15s, border-color .15s;
+    }
+    .chat-item:hover { background: var(--surface2); }
+    .chat-item.active { background: var(--surface2); border-color: var(--accent); }
+    .chat-item-title {
+      flex: 1; font-size: 13px; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .chat-item-del {
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 15px; line-height: 1; padding: 2px 4px; border-radius: 4px;
+      flex-shrink: 0; opacity: 0; transition: opacity .15s, color .15s;
+    }
+    .chat-item:hover .chat-item-del { opacity: 1; }
+    .chat-item-del:hover { color: var(--red); }
+    .chat-list-empty { font-size: 12px; color: var(--muted); padding: 4px 8px; }
+
     .settings { display: flex; flex-direction: column; gap: 14px; }
 
     label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
@@ -262,6 +293,17 @@
       </div>
     </div>
 
+    <button class="new-chat-btn" onclick="startNewChat()">
+      <span>＋</span> New chat
+    </button>
+
+    <div>
+      <div class="section-title" style="margin-bottom:8px">Chats</div>
+      <div class="chat-list" id="chatList">
+        <div class="chat-list-empty">No chats yet</div>
+      </div>
+    </div>
+
     <div class="status-bar" id="statusBar">
       <div class="status-row">
         <span class="status-label">Server</span>
@@ -328,12 +370,12 @@
     </div>
 
     <div style="margin-top:auto">
-      <button onclick="clearChat()"
+      <button onclick="deleteCurrentChat()"
         style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);
                border-radius:8px;padding:9px;font-size:13px;cursor:pointer;transition:color .2s,border-color .2s;"
         onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'"
         onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
-        Clear chat
+        Delete this chat
       </button>
     </div>
   </aside>
@@ -386,6 +428,7 @@
   const API = '';   // same origin — proxied by FastAPI
   let attachedFile = null;
   let isGenerating = false;
+  let currentChatId = null;
 
   // ── Status polling ────────────────────────────────────────────────────────
 
@@ -422,6 +465,118 @@
   }
 
   pollStatus();
+
+  // ── Chat list (persistent history) ──────────────────────────────────────
+
+  function timeAgo(iso) {
+    const diffMs = Date.now() - new Date(iso + 'Z').getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  }
+
+  async function loadChatList() {
+    try {
+      const chats = await fetch(`${API}/chats`).then(r => r.json());
+      renderChatList(chats);
+    } catch {
+      // Sidebar list is a nice-to-have; ignore transient failures silently.
+    }
+  }
+
+  function renderChatList(chats) {
+    const list = document.getElementById('chatList');
+    if (!chats.length) {
+      list.innerHTML = '<div class="chat-list-empty">No chats yet</div>';
+      return;
+    }
+    list.innerHTML = '';
+    for (const chat of chats) {
+      const item = document.createElement('div');
+      item.className = 'chat-item' + (chat.id === currentChatId ? ' active' : '');
+      item.onclick = () => selectChat(chat.id);
+
+      const title = document.createElement('span');
+      title.className = 'chat-item-title';
+      title.textContent = chat.title;
+      title.title = `${chat.title} · ${timeAgo(chat.updated_at)}`;
+
+      const del = document.createElement('button');
+      del.className = 'chat-item-del';
+      del.textContent = '✕';
+      del.title = 'Delete chat';
+      del.onclick = (e) => { e.stopPropagation(); deleteChat(chat.id); };
+
+      item.appendChild(title);
+      item.appendChild(del);
+      list.appendChild(item);
+    }
+  }
+
+  async function selectChat(chatId) {
+    if (isGenerating) return;
+    try {
+      const res = await fetch(`${API}/chats/${chatId}`);
+      if (!res.ok) throw new Error('Chat not found');
+      const chat = await res.json();
+
+      currentChatId = chat.id;
+      const area = document.getElementById('chatArea');
+      area.innerHTML = '';
+
+      for (const msg of chat.messages) {
+        if (msg.role === 'system') continue;
+        const role = msg.role === 'user' ? 'user' : 'assistant';
+        const html = role === 'user' ? escHtml(msg.content) : renderMarkdown(msg.content);
+        appendMessage(role, html, new Date(msg.created_at + 'Z').toLocaleTimeString());
+      }
+      if (!chat.messages.some(m => m.role !== 'system')) {
+        area.innerHTML = `
+          <div class="empty-state" id="emptyState">
+            <div class="empty-icon">✦</div>
+            <div class="empty-title">Empty chat</div>
+            <div class="empty-sub">Send a message to get started.</div>
+          </div>`;
+      }
+      loadChatList();
+    } catch (err) {
+      appendError(`Failed to load chat: ${err.message}`);
+    }
+  }
+
+  function startNewChat() {
+    if (isGenerating) return;
+    currentChatId = null;
+    clearChat();
+    loadChatList();
+  }
+
+  async function deleteChat(chatId) {
+    if (!confirm('Delete this chat? This cannot be undone.')) return;
+    try {
+      await fetch(`${API}/chats/${chatId}`, { method: 'DELETE' });
+      if (chatId === currentChatId) {
+        currentChatId = null;
+        clearChat();
+      }
+      loadChatList();
+    } catch (err) {
+      appendError(`Failed to delete chat: ${err.message}`);
+    }
+  }
+
+  function deleteCurrentChat() {
+    if (!currentChatId) {
+      clearChat();
+      return;
+    }
+    deleteChat(currentChatId);
+  }
+
+  loadChatList();
 
   // ── Image handling ────────────────────────────────────────────────────────
 
@@ -572,7 +727,10 @@
         if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
         data = await res.json();
       } else {
-        const body = { prompt, max_new_tokens: maxTokens, temperature, top_p: topP, do_sample: doSample };
+        const body = {
+          prompt, max_new_tokens: maxTokens, temperature, top_p: topP, do_sample: doSample,
+          chat_id: currentChatId,
+        };
         if (systemPrompt) body.system_prompt = systemPrompt;
         const res = await fetch(`${API}/generate`, {
           method: 'POST',
@@ -581,6 +739,10 @@
         });
         if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
         data = await res.json();
+        if (data.chat_id) {
+          currentChatId = data.chat_id;
+          loadChatList();
+        }
       }
 
       removeThinking();

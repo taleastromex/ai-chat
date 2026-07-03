@@ -10,8 +10,10 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from app.config import Settings, get_settings
+from app.db import create_session_factory
 from app.logging_config import configure_logging
-from app.routers import generate, system
+from app.routers import chats, generate, system
+from app.services.chat_store import ChatStore
 from app.services.model_loader import wait_for_ollama_then_pull
 from app.services.ollama_client import OllamaClient
 from app.state import AppState
@@ -33,6 +35,7 @@ def create_app(
 
     model_state = AppState()
     ollama_client = OllamaClient(host=settings.ollama_host, model=settings.ollama_model)
+    chat_store = ChatStore(create_session_factory(settings.chat_db_path))
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -58,6 +61,7 @@ def create_app(
     app.state.settings = settings
     app.state.model_state = model_state
     app.state.ollama_client = ollama_client
+    app.state.chat_store = chat_store
 
     app.add_middleware(
         CORSMiddleware,
@@ -69,6 +73,7 @@ def create_app(
     app.mount("/static", StaticFiles(directory="static"), name="static")
     app.include_router(system.router)
     app.include_router(generate.router)
+    app.include_router(chats.router)
 
     return app
 

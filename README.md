@@ -61,21 +61,25 @@ AI-model/
 ├── app/                        # the actual application (see "Architecture" below)
 │   ├── main.py                 # FastAPI app factory (`create_app`)
 │   ├── config.py                # Settings (pydantic-settings, reads env vars / .env)
-│   ├── enums.py                  # ModelStatus enum
-│   ├── state.py                   # thread-safe AppState (model loading lifecycle)
-│   ├── schemas.py                  # Pydantic request/response models
-│   ├── dependencies.py              # FastAPI dependency providers
-│   ├── logging_config.py             # loguru setup
+│   ├── db.py                     # SQLAlchemy engine/session + ORM models (chats, messages)
+│   ├── enums.py                    # ModelStatus enum
+│   ├── state.py                     # thread-safe AppState (model loading lifecycle)
+│   ├── schemas.py                    # Pydantic request/response models
+│   ├── dependencies.py                # FastAPI dependency providers
+│   ├── logging_config.py               # loguru setup
 │   ├── routers/
-│   │   ├── system.py                  # /, /health, /info, /ready
-│   │   └── generate.py                 # /generate, /generate/vision(+/upload)
+│   │   ├── system.py                    # /, /health, /info, /ready
+│   │   ├── generate.py                   # /generate, /generate/vision(+/upload)
+│   │   └── chats.py                       # /chats CRUD (persistent chat history)
 │   └── services/
-│       ├── ollama_client.py            # HTTP client for the Ollama API
-│       └── model_loader.py              # background pull/readiness workflow
+│       ├── ollama_client.py              # HTTP client for the Ollama API
+│       ├── model_loader.py                # background pull/readiness workflow
+│       └── chat_store.py                   # persistent chat history (SQLite)
 ├── tests/                       # pytest suite (unit + route tests, no real network calls)
 ├── static/
 │   ├── index.html              # Chat web UI
 │   └── loading.html            # Animated loading / model-download page
+├── data/                       # SQLite chat history (gitignored; mounted as a volume in Docker)
 ├── pyproject.toml               # ruff / mypy / pytest configuration
 ├── requirements.txt              # runtime dependencies (used by the Docker image)
 ├── requirements-dev.txt           # + ruff, mypy, pytest, respx
@@ -104,6 +108,27 @@ A few deliberate choices worth calling out:
 - **`create_app()` factory instead of a bare module-level `app`.** Tests (and anything else that wants a fresh instance, e.g. multiple workers with different config) call `create_app(settings, start_background_loader=False)` rather than importing a singleton.
 - **Settings via `pydantic-settings`** instead of scattered `os.getenv(...)` calls — one typed, validated source of truth for configuration.
 - **Enums instead of magic strings** for the model lifecycle (`ModelStatus`), so typos like `"raedy"` fail at typecheck/import time instead of silently comparing `False`.
+- **Persistent, multi-turn chat history.** Ollama's `/api/chat` is stateless per HTTP call — it has no memory of anything unless you resend the full conversation on every request. `ChatStore` (SQLite via SQLAlchemy) is the single source of truth for that history: every `/generate` call appends the user's message, loads the chat's context window, and appends the model's reply — all before/after the single Ollama call. The `/chats` router exposes that same store for the sidebar's chat list.
+
+---
+
+## Why the chat now remembers context
+
+Earlier versions of this UI only ever sent the *current* message to `/generate` — nothing before it. Since Ollama holds no session state between requests, that meant every message was effectively a fresh, context-free conversation: the model had no way to "remember" anything you said one turn ago.
+
+Chat history is now persisted server-side in SQLite (`app/services/chat_store.py`) and threaded through explicitly:
+
+```
+Browser → POST /generate {prompt, chat_id} → append user msg to chat_id in SQLite
+                                            → load last N messages (+ system prompt) for chat_id
+                                            → send full message list to Ollama /api/chat
+                                            → append the reply to chat_id in SQLite
+                                            → return {generated_text, chat_id}
+```
+
+- `chat_id` is returned by every `/generate` call and should be sent back on the next one to continue that conversation (the web UI does this automatically). Omit it to start a new chat.
+- `CHAT_HISTORY_LIMIT` (default `20`) caps how many past messages are resent each turn — the chat's system prompt, if any, is always included on top of that limit so long conversations never lose their instructions.
+- History survives container restarts (`data/chats.db` is a mounted volume) but is not summarized/compacted — very long conversations will eventually hit the model's own context window regardless of `CHAT_HISTORY_LIMIT`.
 
 ---
 
@@ -180,6 +205,7 @@ This installs Ollama via Homebrew, starts it natively (full Metal GPU accelerati
 | `PORT` | `8080` | Host port for the AI-FABLE web UI / API |
 | `OLLAMA_PORT` | `11434` | Host port for Ollama's own API |
 | `LOG_LEVEL` | `INFO` | `DEBUG` · `INFO` · `WARNING` · `ERROR` |
+| `CHAT_HISTORY_LIMIT` | `20` | Max past messages resent to the model per turn (see ["Why the chat now remembers context"](#why-the-chat-now-remembers-context)) |
 | `OLLAMA_HOST` | `http://localhost:11434` | Only used by `run_local.sh` — Docker always uses the internal service name automatically |
 
 ---
@@ -189,9 +215,9 @@ This installs Ollama via Homebrew, starts it natively (full Metal GPU accelerati
 Open `http://localhost:8080`:
 
 - **Text chat** with adjustable max tokens, temperature, top-p, system prompt
-- **Image attachment** (📎) for multimodal prompts
+- **Persistent, multi-chat history** — the sidebar lists past chats (auto-titled from their first message), click one to reload it, **+ New chat** to start fresh, ✕ or "Delete this chat" to remove one permanently
+- **Image attachment** (📎) for multimodal prompts (single-turn — vision requests aren't added to persisted history yet)
 - **Live status sidebar** — server state, backend, active quantization
-- **Clear chat** button
 
 ---
 
@@ -213,10 +239,25 @@ curl http://localhost:8080/info
 ```
 
 ### `POST /generate`
+Starts a new chat if `chat_id` is omitted; pass the `chat_id` from the response back in to continue that conversation with full history.
 ```bash
 curl -X POST http://localhost:8080/generate \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Write a Python function to merge two sorted lists.", "max_new_tokens": 512}'
+# => {"generated_text": "...", "model": "...", "tokens_generated": 128, "chat_id": "a1b2c3..."}
+
+curl -X POST http://localhost:8080/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Now add type hints to it.", "chat_id": "a1b2c3..."}'
+```
+
+### `GET /chats` / `POST /chats` / `GET /chats/{id}` / `DELETE /chats/{id}`
+CRUD for persisted chats, backing the sidebar's chat list.
+```bash
+curl http://localhost:8080/chats                 # list chats (most recently updated first)
+curl -X POST http://localhost:8080/chats          # create an empty chat, returns its id
+curl http://localhost:8080/chats/a1b2c3           # full chat incl. all messages
+curl -X DELETE http://localhost:8080/chats/a1b2c3 # delete a chat and its messages
 ```
 
 ### `POST /generate/vision` (image URL or base64)
@@ -318,6 +359,9 @@ This means the GPU override (`docker-compose.gpu.yml`) was applied on a host wit
 
 ### Browser shows connection refused
 The server starts instantly, but Ollama needs to download the model on first run. Open `http://localhost:8080` — you'll see a loading page that polls `/ready` and redirects automatically once the model is available.
+
+### The model doesn't remember earlier messages
+If you're on an old build of this project, `/generate` only ever sent the current message with no history — see ["Why the chat now remembers context"](#why-the-chat-now-remembers-context). Pull the latest files (Docker: `./deploy.sh restart` after `docker compose build`; native: re-run `./run_local.sh`) and hard-refresh the browser tab (the chat UI is static and can be cached). If it's still happening on a current build, check that responses from `POST /generate` actually include a non-null `chat_id` and that the same `chat_id` is sent on the next request — that's the one moving part that keeps context alive.
 
 ### Check what's happening
 ```bash

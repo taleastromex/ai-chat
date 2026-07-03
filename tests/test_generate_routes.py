@@ -58,6 +58,60 @@ def test_generate_forwards_system_prompt(app: FastAPI, client: TestClient, state
     assert messages[1] == {"role": "user", "content": "hi"}
 
 
+def test_generate_creates_a_new_chat_when_none_given(
+    app: FastAPI, client: TestClient, state: AppState
+) -> None:
+    state.set(ModelStatus.READY)
+    app.dependency_overrides[get_state] = lambda: state
+
+    mock_client = AsyncMock()
+    mock_client.chat.return_value = ("ok", 1)
+    mock_client.model = "test-model:latest"
+    app.dependency_overrides[get_ollama_client] = lambda: mock_client
+
+    response = client.post("/generate", json={"prompt": "hi"})
+
+    chat_id = response.json()["chat_id"]
+    assert chat_id
+    assert client.get(f"/chats/{chat_id}").status_code == 200
+
+
+def test_generate_returns_404_for_unknown_chat_id(
+    app: FastAPI, client: TestClient, state: AppState
+) -> None:
+    state.set(ModelStatus.READY)
+    app.dependency_overrides[get_state] = lambda: state
+    app.dependency_overrides[get_ollama_client] = lambda: AsyncMock()
+
+    response = client.post("/generate", json={"prompt": "hi", "chat_id": "does-not-exist"})
+
+    assert response.status_code == 404
+
+
+def test_generate_reuses_chat_and_resends_history(
+    app: FastAPI, client: TestClient, state: AppState
+) -> None:
+    state.set(ModelStatus.READY)
+    app.dependency_overrides[get_state] = lambda: state
+
+    mock_client = AsyncMock()
+    mock_client.chat.return_value = ("first reply", 2)
+    mock_client.model = "test-model:latest"
+    app.dependency_overrides[get_ollama_client] = lambda: mock_client
+
+    first = client.post("/generate", json={"prompt": "my name is Bob"})
+    chat_id = first.json()["chat_id"]
+
+    mock_client.chat.return_value = ("second reply", 2)
+    client.post("/generate", json={"prompt": "what is my name?", "chat_id": chat_id})
+
+    second_call_messages = mock_client.chat.call_args_list[1].args[0]
+    contents = [m["content"] for m in second_call_messages]
+    assert "my name is Bob" in contents
+    assert "first reply" in contents
+    assert "what is my name?" in contents
+
+
 def test_generate_vision_returns_503_when_model_not_ready(client: TestClient) -> None:
     response = client.post("/generate/vision", json={"prompt": "what is this?"})
     assert response.status_code == 503

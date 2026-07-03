@@ -28,6 +28,12 @@ htmlcov/
 .cache/
 models/
 
+# Persistent chat history (SQLite) — machine-specific runtime data
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
 # macOS
 .DS_Store
 
