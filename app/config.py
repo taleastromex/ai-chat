@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     port: int = 8080
     log_level: str = "INFO"
 
+    # Persistent chat history. `chat_db_path` accepts a filesystem path (parent
+    # directories are created automatically) or the special value ":memory:"
+    # (used by the test suite for a throwaway, per-process database).
+    chat_db_path: str = "data/chats.db"
+    # How many of the most recent non-system messages to resend to Ollama on
+    # every turn, so the model keeps seeing prior context. The chat's system
+    # prompt (if any) is always included on top of this, regardless of limit.
+    chat_history_limit: int = 20
+
 
 @lru_cache
 def get_settings() -> Settings:

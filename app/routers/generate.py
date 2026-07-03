@@ -8,9 +8,11 @@ import requests
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from loguru import logger
 
-from app.dependencies import get_ollama_client, get_state
+from app.config import Settings
+from app.dependencies import get_chat_store, get_ollama_client, get_settings_dep, get_state
 from app.enums import ModelStatus
 from app.schemas import GenerateResponse, TextRequest, VisionRequest
+from app.services.chat_store import ChatStore
 from app.services.ollama_client import OllamaClient
 from app.state import AppState
 
@@ -39,14 +41,23 @@ async def generate_text(
     request: TextRequest,
     state: AppState = Depends(get_state),
     client: OllamaClient = Depends(get_ollama_client),
+    store: ChatStore = Depends(get_chat_store),
+    settings: Settings = Depends(get_settings_dep),
 ) -> GenerateResponse:
     _ensure_ready(state)
-    logger.info(f"Text generation request — max_new_tokens={request.max_new_tokens}")
 
-    messages: list[dict[str, str]] = []
-    if request.system_prompt:
-        messages.append({"role": "system", "content": request.system_prompt})
-    messages.append({"role": "user", "content": request.prompt})
+    chat_id = request.chat_id or store.create_chat().id
+    if store.get_chat(chat_id) is None:
+        raise HTTPException(status_code=404, detail=f"Chat not found: {chat_id}")
+
+    if request.system_prompt and not any(m.role == "system" for m in store.get_messages(chat_id)):
+        store.append_message(chat_id, "system", request.system_prompt)
+
+    store.append_message(chat_id, "user", request.prompt)
+    logger.info(f"Text generation request — chat={chat_id} max_new_tokens={request.max_new_tokens}")
+
+    context = store.get_context(chat_id, limit=settings.chat_history_limit)
+    messages = [{"role": m.role, "content": m.content} for m in context]
 
     text, tokens = await client.chat(
         messages,
@@ -54,7 +65,11 @@ async def generate_text(
         temperature=request.temperature,
         top_p=request.top_p,
     )
-    return GenerateResponse(generated_text=text, model=client.model, tokens_generated=tokens)
+    store.append_message(chat_id, "assistant", text)
+
+    return GenerateResponse(
+        generated_text=text, model=client.model, tokens_generated=tokens, chat_id=chat_id
+    )
 
 
 @router.post("/generate/vision", response_model=GenerateResponse)

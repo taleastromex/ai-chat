@@ -50,10 +50,12 @@ services:
       - "${PORT:-8080}:8080"
     volumes:
       - ai-fable-logs:/app/logs
+      - ai-fable-data:/app/data
     environment:
       OLLAMA_HOST: "http://ollama:11434"
       OLLAMA_MODEL: "${OLLAMA_MODEL:-hf.co/mradermacher/Huihui-gemma-4-12B-coder-fable5-composer2.5-v1-abliterated-GGUF:Q4_K_M}"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      CHAT_HISTORY_LIMIT: "${CHAT_HISTORY_LIMIT:-20}"
       PYTHONUNBUFFERED: "1"
       HOST: "0.0.0.0"
       PORT: "8080"
@@ -67,3 +69,4 @@ services:
 volumes:
   ollama-data:
   ai-fable-logs:
+  ai-fable-data:
