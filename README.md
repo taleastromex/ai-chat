@@ -1,5 +1,7 @@
 # AI-FABLE
 
+[![CI](https://github.com/taleastromex/ai-chat/actions/workflows/ci.yml/badge.svg)](https://github.com/taleastromex/ai-chat/actions/workflows/ci.yml)
+
 > Web chat + REST API for **[huihui-ai/Huihui-gemma-4-12B-coder-fable5-composer2.5-v1-abliterated](https://huggingface.co/huihui-ai/Huihui-gemma-4-12B-coder-fable5-composer2.5-v1-abliterated)**, served through **Ollama**.
 
 ---
@@ -274,6 +276,19 @@ pytest                # unit + route tests (no real network calls; Ollama is alw
 ```
 
 The test suite never talks to a real Ollama server — `create_app(..., start_background_loader=False)` skips the background pull thread entirely, and individual tests inject fake `AppState`/`OllamaClient` instances via `app.dependency_overrides`.
+
+### Continuous Integration
+
+Every push and pull request to `master` runs the [`CI` workflow](.github/workflows/ci.yml) on GitHub Actions:
+
+| Job | What it checks |
+| --- | --- |
+| `lint` | `ruff check` + `ruff format --check` |
+| `typecheck` | `mypy app main.py` |
+| `test` | `pytest` on Python 3.10, 3.11, and 3.12 |
+| `docker` | validates both compose files, builds the `Dockerfile`, then boots the container and polls `/health` as a smoke test |
+
+`ci-success` is a single aggregate job you can set as the required status check in branch protection instead of listing every job individually.
 
 ---
 

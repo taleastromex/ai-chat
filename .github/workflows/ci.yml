@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION_DEFAULT: "3.12"
+
+jobs:
+  lint:
+    name: Lint & format (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: ruff check
+        run: ruff check --output-format=github .
+
+      - name: ruff format --check
+        run: ruff format --check .
+
+  typecheck:
+    name: Type check (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      - run: mypy app main.py
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      - run: pytest -v
+
+  docker:
+    name: Docker build & smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose configs
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.gpu.yml config --quiet
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ai-fable:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run container (smoke test)
+        run: |
+          docker run -d --name ai-fable-smoke -p 8080:8080 \
+            -e OLLAMA_HOST="http://127.0.0.1:1" \
+            ai-fable:ci
+
+      - name: Wait for /health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/health; then
+              echo
+              echo "✔ container is up and serving requests"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "✖ server did not become reachable in time"
+          exit 1
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker logs ai-fable-smoke
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f ai-fable-smoke || true
+
+  ci-success:
+    name: CI success
+    if: always()
+    needs: [lint, typecheck, test, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs succeeded
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+          echo "All checks passed."
