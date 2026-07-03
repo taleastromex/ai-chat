@@ -1,0 +1,21 @@
+# GPU override — layer this on top of docker-compose.yml to enable NVIDIA
+# GPU acceleration for Ollama. Requires:
+#   - A Linux host (Docker Desktop on macOS/Windows cannot pass through GPUs)
+#   - An NVIDIA GPU + the NVIDIA Container Toolkit installed and configured
+#     (see README.md for install commands)
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+#
+# Or simply run ./deploy.sh, which applies this automatically when a usable
+# NVIDIA GPU is detected.
+
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

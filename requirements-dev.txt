@@ -1,0 +1,10 @@
+# Development-only dependencies — linting, type checking, and tests.
+# Install with: pip install -r requirements-dev.txt
+-r requirements.txt
+
+ruff>=0.5.0
+mypy>=1.10.0
+
+pytest>=8.2.0
+pytest-asyncio>=0.23.0
+respx>=0.21.0          # mocks httpx calls in tests (used for OllamaClient)

@@ -1,0 +1,34 @@
+# Secrets — never commit these
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+
+# Logs
+logs/
+*.log
+
+# Test / lint / type-check caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Model weights / HF cache (large binary files, use volumes instead)
+.cache/
+models/
+
+# macOS
+.DS_Store
+
+.idea/

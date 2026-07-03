@@ -1,0 +1,69 @@
+# AI-FABLE — unified, OS-agnostic deployment.
+#
+# This base file works on ANY device out of the box (Linux, macOS, Windows +
+# WSL2, amd64 or arm64) — CPU-only, no GPU drivers required. Two services:
+#   1. ollama     — runs the GGUF model (does the actual inference)
+#   2. ai-fable   — lightweight FastAPI proxy + web chat UI
+#
+# Usage (works everywhere):
+#   docker compose up --build -d
+#
+# To additionally enable NVIDIA GPU acceleration on a Linux host with the
+# NVIDIA Container Toolkit installed, layer the GPU override on top:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+#
+# Or just use ./deploy.sh, which detects GPU availability automatically and
+# picks the right combination of files for you.
+#
+# Note: Docker Desktop on macOS/Windows cannot pass through any GPU (NVIDIA
+# or Apple Silicon) to containers — that's a Docker Desktop platform
+# limitation, not something fixable from a compose file. On Apple Silicon,
+# use ./run_local.sh instead for native Metal GPU acceleration.
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: AI-FABLE-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  ai-fable:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: AI-FABLE
+    image: ai-fable:latest
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - ai-fable-logs:/app/logs
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-hf.co/mradermacher/Huihui-gemma-4-12B-coder-fable5-composer2.5-v1-abliterated-GGUF:Q4_K_M}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      PYTHONUNBUFFERED: "1"
+      HOST: "0.0.0.0"
+      PORT: "8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  ollama-data:
+  ai-fable-logs:
