@@ -4,281 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI-FABLE</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:        #0d0f14;
-      --surface:   #161a23;
-      --surface2:  #1e2330;
-      --border:    #2a3045;
-      --accent:    #6c63ff;
-      --accent-h:  #8a83ff;
-      --green:     #3ecf8e;
-      --red:       #f87171;
-      --yellow:    #fbbf24;
-      --text:      #e4e8f0;
-      --muted:     #6b7a99;
-      --radius:    12px;
-      --font:      'Inter', system-ui, sans-serif;
-      --mono:      'JetBrains Mono', 'Fira Code', monospace;
-    }
-
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
-
-    /* ── Layout ── */
-    .shell { display: grid; grid-template-columns: 280px 1fr; height: 100vh; overflow: hidden; }
-
-    /* ── Sidebar ── */
-    .sidebar {
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      display: flex; flex-direction: column;
-      padding: 24px 16px;
-      gap: 24px;
-      overflow-y: auto;
-    }
-    .logo { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
-    .logo-icon {
-      width: 36px; height: 36px; border-radius: 10px;
-      background: linear-gradient(135deg, var(--accent), #a855f7);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px; flex-shrink: 0;
-    }
-    .logo-text { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
-    .logo-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
-
-    .status-bar {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 12px 14px;
-      display: flex; flex-direction: column; gap: 8px;
-      font-size: 12px;
-    }
-    .status-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .status-label { color: var(--muted); }
-    .badge {
-      padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600;
-    }
-    .badge-green  { background: #0d3325; color: var(--green); }
-    .badge-yellow { background: #3a2a00; color: var(--yellow); }
-    .badge-red    { background: #3a0d0d; color: var(--red); }
-    .badge-muted  { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
-
-    .section-title {
-      font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
-      text-transform: uppercase; color: var(--muted);
-      padding: 0 8px;
-    }
-
-    /* ── New chat button ── */
-    .new-chat-btn {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      width: 100%; background: var(--accent); border: none; color: #fff;
-      border-radius: 10px; padding: 10px; font-size: 13px; font-weight: 600;
-      cursor: pointer; transition: background .2s;
-    }
-    .new-chat-btn:hover { background: var(--accent-h); }
-
-    /* ── Chat list ── */
-    .chat-list { display: flex; flex-direction: column; gap: 4px; }
-    .chat-item {
-      display: flex; align-items: center; gap: 8px;
-      padding: 9px 10px; border-radius: 8px; cursor: pointer;
-      border: 1px solid transparent; transition: background .15s, border-color .15s;
-    }
-    .chat-item:hover { background: var(--surface2); }
-    .chat-item.active { background: var(--surface2); border-color: var(--accent); }
-    .chat-item-title {
-      flex: 1; font-size: 13px; color: var(--text);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .chat-item-del {
-      background: none; border: none; cursor: pointer; color: var(--muted);
-      font-size: 15px; line-height: 1; padding: 2px 4px; border-radius: 4px;
-      flex-shrink: 0; opacity: 0; transition: opacity .15s, color .15s;
-    }
-    .chat-item:hover .chat-item-del { opacity: 1; }
-    .chat-item-del:hover { color: var(--red); }
-    .chat-list-empty { font-size: 12px; color: var(--muted); padding: 4px 8px; }
-
-    .settings { display: flex; flex-direction: column; gap: 14px; }
-
-    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
-    input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
-    .range-row { display: flex; justify-content: space-between; align-items: center; }
-    .range-val { font-size: 12px; font-weight: 600; color: var(--accent); font-family: var(--mono); }
-
-    select, input[type="number"] {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); border-radius: 8px; padding: 7px 10px; font-size: 13px;
-      outline: none; transition: border-color .2s;
-    }
-    select:focus, input[type="number"]:focus { border-color: var(--accent); }
-
-    .toggle-row { display: flex; justify-content: space-between; align-items: center; }
-    .toggle { position: relative; width: 38px; height: 20px; flex-shrink: 0; }
-    .toggle input { display: none; }
-    .toggle-track {
-      position: absolute; inset: 0; border-radius: 20px;
-      background: var(--border); cursor: pointer; transition: background .2s;
-    }
-    .toggle input:checked + .toggle-track { background: var(--accent); }
-    .toggle-track::after {
-      content: ''; position: absolute; top: 2px; left: 2px;
-      width: 16px; height: 16px; border-radius: 50%;
-      background: #fff; transition: transform .2s;
-    }
-    .toggle input:checked + .toggle-track::after { transform: translateX(18px); }
-
-    /* ── Main ── */
-    .main { display: flex; flex-direction: column; overflow: hidden; }
-
-    /* ── Chat area ── */
-    .chat-area {
-      flex: 1; overflow-y: auto; padding: 32px;
-      display: flex; flex-direction: column; gap: 20px;
-    }
-    .chat-area::-webkit-scrollbar { width: 6px; }
-    .chat-area::-webkit-scrollbar-track { background: transparent; }
-    .chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
-
-    .msg { display: flex; gap: 14px; max-width: 800px; }
-    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-    .msg.assistant { align-self: flex-start; }
-
-    .avatar {
-      width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center; font-size: 16px;
-    }
-    .avatar.user-av { background: linear-gradient(135deg, #3b82f6, #6366f1); }
-    .avatar.ai-av   { background: linear-gradient(135deg, var(--accent), #a855f7); }
-
-    .bubble {
-      padding: 12px 16px; border-radius: var(--radius);
-      line-height: 1.7; font-size: 14px; max-width: 680px;
-      white-space: pre-wrap; word-break: break-word;
-    }
-    .bubble.user-b {
-      background: linear-gradient(135deg, #1e2d6b, #2a1f6b);
-      border: 1px solid #3a3a8a;
-      border-bottom-right-radius: 4px;
-    }
-    .bubble.ai-b {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-bottom-left-radius: 4px;
-    }
-    .bubble.error-b {
-      background: #1e0d0d; border: 1px solid #5a1a1a; color: var(--red);
-    }
-
-    .bubble code {
-      font-family: var(--mono); font-size: 13px;
-      background: #0a0d14; padding: 2px 5px; border-radius: 4px; color: #a5d6a7;
-    }
-    .bubble pre {
-      background: #0a0d14; border: 1px solid var(--border);
-      border-radius: 8px; padding: 14px; margin: 8px 0;
-      overflow-x: auto;
-    }
-    .bubble pre code { background: none; padding: 0; }
-
-    .meta { font-size: 11px; color: var(--muted); margin-top: 5px; padding: 0 4px; }
-    .msg.user .meta { text-align: right; }
-
-    .thinking {
-      display: flex; align-items: center; gap: 8px;
-      color: var(--muted); font-size: 13px; padding: 10px 0;
-    }
-    .dots span {
-      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-      background: var(--accent); margin: 0 2px;
-      animation: bounce 1.2s infinite;
-    }
-    .dots span:nth-child(2) { animation-delay: .2s; }
-    .dots span:nth-child(3) { animation-delay: .4s; }
-    @keyframes bounce {
-      0%, 60%, 100% { transform: translateY(0); }
-      30% { transform: translateY(-6px); }
-    }
-
-    .empty-state {
-      flex: 1; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 16px;
-      color: var(--muted); text-align: center;
-    }
-    .empty-icon { font-size: 48px; opacity: .4; }
-    .empty-title { font-size: 20px; font-weight: 600; color: var(--text); opacity: .5; }
-    .empty-sub { font-size: 13px; max-width: 340px; line-height: 1.6; }
-
-    /* ── Image preview ── */
-    .image-preview-wrap {
-      padding: 8px 32px 0;
-      display: none;
-    }
-    .image-preview-wrap.visible { display: flex; gap: 10px; align-items: center; }
-    .image-thumb {
-      width: 64px; height: 64px; object-fit: cover;
-      border-radius: 8px; border: 1px solid var(--border);
-    }
-    .remove-img {
-      background: none; border: none; cursor: pointer;
-      color: var(--muted); font-size: 18px; line-height: 1;
-      transition: color .2s;
-    }
-    .remove-img:hover { color: var(--red); }
-
-    /* ── Input bar ── */
-    .input-bar {
-      padding: 16px 32px 24px;
-      border-top: 1px solid var(--border);
-      background: var(--bg);
-    }
-    .input-row {
-      display: flex; gap: 10px; align-items: flex-end;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; padding: 10px 12px;
-      transition: border-color .2s;
-    }
-    .input-row:focus-within { border-color: var(--accent); }
-
-    .attach-btn {
-      background: none; border: none; cursor: pointer; padding: 6px;
-      color: var(--muted); border-radius: 8px; transition: color .2s, background .2s;
-      flex-shrink: 0; align-self: flex-end;
-    }
-    .attach-btn:hover { color: var(--accent); background: var(--surface2); }
-    .attach-btn svg { display: block; }
-
-    textarea {
-      flex: 1; background: none; border: none; outline: none;
-      color: var(--text); font-family: var(--font); font-size: 14px;
-      resize: none; min-height: 24px; max-height: 160px;
-      line-height: 1.5; padding: 4px 0;
-    }
-    textarea::placeholder { color: var(--muted); }
-
-    .send-btn {
-      background: var(--accent); border: none; cursor: pointer;
-      color: #fff; border-radius: 10px; padding: 8px 10px;
-      transition: background .2s, transform .1s; flex-shrink: 0;
-      align-self: flex-end; display: flex; align-items: center; justify-content: center;
-    }
-    .send-btn:hover:not(:disabled) { background: var(--accent-h); }
-    .send-btn:active:not(:disabled) { transform: scale(.95); }
-    .send-btn:disabled { background: var(--border); cursor: not-allowed; }
-    .send-btn svg { display: block; }
-
-    .input-hint { font-size: 11px; color: var(--muted); margin-top: 8px; padding: 0 4px; }
-
-    /* ── Responsive ── */
-    @media (max-width: 720px) {
-      .shell { grid-template-columns: 1fr; }
-      .sidebar { display: none; }
-    }
-  </style>
+  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/chat.css" />
+  <script src="/static/marked.min.js"></script>
+  <script src="/static/js/chat.js" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -293,7 +22,7 @@
       </div>
     </div>
 
-    <button class="new-chat-btn" onclick="startNewChat()">
+    <button id="newChatBtn" class="new-chat-btn">
       <span>＋</span> New chat
     </button>
 
@@ -331,8 +60,7 @@
           <label for="maxTokens">Max new tokens</label>
           <span class="range-val" id="maxTokensVal">512</span>
         </div>
-        <input type="range" id="maxTokens" min="64" max="4096" step="64" value="512"
-               oninput="document.getElementById('maxTokensVal').textContent=this.value" />
+        <input type="range" id="maxTokens" min="64" max="4096" step="64" value="512" />
       </div>
 
       <div>
@@ -340,8 +68,7 @@
           <label for="temperature">Temperature</label>
           <span class="range-val" id="tempVal">0.7</span>
         </div>
-        <input type="range" id="temperature" min="0" max="2" step="0.05" value="0.7"
-               oninput="document.getElementById('tempVal').textContent=parseFloat(this.value).toFixed(2)" />
+        <input type="range" id="temperature" min="0" max="2" step="0.05" value="0.7" />
       </div>
 
       <div>
@@ -349,14 +76,12 @@
           <label for="topP">Top-p</label>
           <span class="range-val" id="topPVal">0.90</span>
         </div>
-        <input type="range" id="topP" min="0.01" max="1" step="0.01" value="0.9"
-               oninput="document.getElementById('topPVal').textContent=parseFloat(this.value).toFixed(2)" />
+        <input type="range" id="topP" min="0.01" max="1" step="0.01" value="0.9" />
       </div>
 
       <div>
         <label for="systemPrompt">System prompt</label>
-        <textarea id="systemPrompt" rows="3"
-          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text);font-family:var(--font);resize:vertical;outline:none;"
+        <textarea id="systemPrompt" class="system-prompt-input" rows="3"
           placeholder="Optional system instructions…"></textarea>
       </div>
 
@@ -369,15 +94,6 @@
       </div>
     </div>
 
-    <div style="margin-top:auto">
-      <button onclick="deleteCurrentChat()"
-        style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);
-               border-radius:8px;padding:9px;font-size:13px;cursor:pointer;transition:color .2s,border-color .2s;"
-        onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'"
-        onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
-        Delete this chat
-      </button>
-    </div>
   </aside>
 
   <!-- ── Main ── -->
@@ -393,28 +109,30 @@
     <!-- Image preview strip -->
     <div class="image-preview-wrap" id="imagePreviewWrap">
       <img id="imageThumb" class="image-thumb" src="" alt="attached image" />
-      <button class="remove-img" onclick="removeImage()" title="Remove image">✕</button>
-      <span style="font-size:12px;color:var(--muted)" id="imageFileName"></span>
+      <button id="removeImgBtn" class="remove-img" title="Remove image">✕</button>
+      <span id="imageFileName" class="image-filename"></span>
     </div>
 
     <!-- Input bar -->
     <div class="input-bar">
       <div class="input-row">
-        <!-- Hidden file input -->
-        <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFileSelect(event)" />
-        <button class="attach-btn" onclick="document.getElementById('fileInput').click()" title="Attach image">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+        <input type="file" id="fileInput" accept="image/*" style="display:none" />
+        <button id="attachBtn" class="attach-btn" title="Attach image">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
             <polyline points="21 15 16 10 5 21"/>
           </svg>
         </button>
 
-        <textarea id="promptInput" placeholder="Ask anything…" rows="1"
-          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <textarea id="promptInput" placeholder="Ask anything…" rows="1"></textarea>
 
-        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send (Enter)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        <button id="sendBtn" class="send-btn" title="Send (Enter)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
           </svg>
         </button>
       </div>
@@ -423,365 +141,5 @@
   </main>
 
 </div>
-
-<script>
-  const API = '';   // same origin — proxied by FastAPI
-  let attachedFile = null;
-  let isGenerating = false;
-  let currentChatId = null;
-
-  // ── Status polling ────────────────────────────────────────────────────────
-
-  async function pollStatus() {
-    try {
-      const [health, info] = await Promise.all([
-        fetch(`${API}/health`).then(r => r.json()),
-        fetch(`${API}/info`).then(r => r.json()),
-      ]);
-
-      const serverBadge = document.getElementById('serverBadge');
-      if (health.model_loaded) {
-        serverBadge.textContent = 'Ready';
-        serverBadge.className = 'badge badge-green';
-      } else {
-        serverBadge.textContent = 'Loading…';
-        serverBadge.className = 'badge badge-yellow';
-        setTimeout(pollStatus, 5000);
-        return;
-      }
-
-      const fullId = info.model_id || '';
-      const modelShort = fullId.split('/').pop() || '—';
-      const quantTag = fullId.includes(':') ? fullId.split(':').pop() : '—';
-      document.getElementById('modelBadge').textContent = modelShort.split(':')[0];
-      document.getElementById('deviceBadge').textContent = info.backend || 'Ollama';
-      document.getElementById('quantBadge').textContent = quantTag;
-    } catch {
-      const b = document.getElementById('serverBadge');
-      b.textContent = 'Offline';
-      b.className = 'badge badge-red';
-      setTimeout(pollStatus, 8000);
-    }
-  }
-
-  pollStatus();
-
-  // ── Chat list (persistent history) ──────────────────────────────────────
-
-  function timeAgo(iso) {
-    const diffMs = Date.now() - new Date(iso + 'Z').getTime();
-    const mins = Math.floor(diffMs / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
-  }
-
-  async function loadChatList() {
-    try {
-      const chats = await fetch(`${API}/chats`).then(r => r.json());
-      renderChatList(chats);
-    } catch {
-      // Sidebar list is a nice-to-have; ignore transient failures silently.
-    }
-  }
-
-  function renderChatList(chats) {
-    const list = document.getElementById('chatList');
-    if (!chats.length) {
-      list.innerHTML = '<div class="chat-list-empty">No chats yet</div>';
-      return;
-    }
-    list.innerHTML = '';
-    for (const chat of chats) {
-      const item = document.createElement('div');
-      item.className = 'chat-item' + (chat.id === currentChatId ? ' active' : '');
-      item.onclick = () => selectChat(chat.id);
-
-      const title = document.createElement('span');
-      title.className = 'chat-item-title';
-      title.textContent = chat.title;
-      title.title = `${chat.title} · ${timeAgo(chat.updated_at)}`;
-
-      const del = document.createElement('button');
-      del.className = 'chat-item-del';
-      del.textContent = '✕';
-      del.title = 'Delete chat';
-      del.onclick = (e) => { e.stopPropagation(); deleteChat(chat.id); };
-
-      item.appendChild(title);
-      item.appendChild(del);
-      list.appendChild(item);
-    }
-  }
-
-  async function selectChat(chatId) {
-    if (isGenerating) return;
-    try {
-      const res = await fetch(`${API}/chats/${chatId}`);
-      if (!res.ok) throw new Error('Chat not found');
-      const chat = await res.json();
-
-      currentChatId = chat.id;
-      const area = document.getElementById('chatArea');
-      area.innerHTML = '';
-
-      for (const msg of chat.messages) {
-        if (msg.role === 'system') continue;
-        const role = msg.role === 'user' ? 'user' : 'assistant';
-        const html = role === 'user' ? escHtml(msg.content) : renderMarkdown(msg.content);
-        appendMessage(role, html, new Date(msg.created_at + 'Z').toLocaleTimeString());
-      }
-      if (!chat.messages.some(m => m.role !== 'system')) {
-        area.innerHTML = `
-          <div class="empty-state" id="emptyState">
-            <div class="empty-icon">✦</div>
-            <div class="empty-title">Empty chat</div>
-            <div class="empty-sub">Send a message to get started.</div>
-          </div>`;
-      }
-      loadChatList();
-    } catch (err) {
-      appendError(`Failed to load chat: ${err.message}`);
-    }
-  }
-
-  function startNewChat() {
-    if (isGenerating) return;
-    currentChatId = null;
-    clearChat();
-    loadChatList();
-  }
-
-  async function deleteChat(chatId) {
-    if (!confirm('Delete this chat? This cannot be undone.')) return;
-    try {
-      await fetch(`${API}/chats/${chatId}`, { method: 'DELETE' });
-      if (chatId === currentChatId) {
-        currentChatId = null;
-        clearChat();
-      }
-      loadChatList();
-    } catch (err) {
-      appendError(`Failed to delete chat: ${err.message}`);
-    }
-  }
-
-  function deleteCurrentChat() {
-    if (!currentChatId) {
-      clearChat();
-      return;
-    }
-    deleteChat(currentChatId);
-  }
-
-  loadChatList();
-
-  // ── Image handling ────────────────────────────────────────────────────────
-
-  function handleFileSelect(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    attachedFile = file;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      document.getElementById('imageThumb').src = ev.target.result;
-      document.getElementById('imageFileName').textContent = file.name;
-      document.getElementById('imagePreviewWrap').classList.add('visible');
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function removeImage() {
-    attachedFile = null;
-    document.getElementById('fileInput').value = '';
-    document.getElementById('imagePreviewWrap').classList.remove('visible');
-    document.getElementById('imageThumb').src = '';
-  }
-
-  // ── Chat rendering ────────────────────────────────────────────────────────
-
-  function renderMarkdown(text) {
-    // Fenced code blocks
-    text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
-      `<pre><code class="lang-${lang}">${escHtml(code.trimEnd())}</code></pre>`
-    );
-    // Inline code
-    text = text.replace(/`([^`]+)`/g, (_, c) => `<code>${escHtml(c)}</code>`);
-    // Bold
-    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    // Italic
-    text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    return text;
-  }
-
-  function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  function appendMessage(role, html, meta = '') {
-    const area = document.getElementById('chatArea');
-    document.getElementById('emptyState')?.remove();
-
-    const div = document.createElement('div');
-    div.className = `msg ${role}`;
-
-    const avatar = document.createElement('div');
-    avatar.className = `avatar ${role === 'user' ? 'user-av' : 'ai-av'}`;
-    avatar.textContent = role === 'user' ? '👤' : '🧠';
-
-    const bubble = document.createElement('div');
-    bubble.className = `bubble ${role === 'user' ? 'user-b' : 'ai-b'}`;
-    bubble.innerHTML = html;
-
-    const metaEl = document.createElement('div');
-    metaEl.className = 'meta';
-    metaEl.textContent = meta;
-
-    const wrap = document.createElement('div');
-    wrap.appendChild(bubble);
-    if (meta) wrap.appendChild(metaEl);
-
-    div.appendChild(avatar);
-    div.appendChild(wrap);
-    area.appendChild(div);
-    area.scrollTop = area.scrollHeight;
-    return bubble;
-  }
-
-  function appendThinking() {
-    const area = document.getElementById('chatArea');
-    document.getElementById('emptyState')?.remove();
-
-    const div = document.createElement('div');
-    div.className = 'msg assistant';
-    div.id = 'thinkingMsg';
-    div.innerHTML = `
-      <div class="avatar ai-av">🧠</div>
-      <div class="thinking">
-        <div class="dots"><span></span><span></span><span></span></div>
-        Generating…
-      </div>`;
-    area.appendChild(div);
-    area.scrollTop = area.scrollHeight;
-  }
-
-  function removeThinking() {
-    document.getElementById('thinkingMsg')?.remove();
-  }
-
-  function appendError(msg) {
-    const area = document.getElementById('chatArea');
-    const div = document.createElement('div');
-    div.className = 'msg assistant';
-    div.innerHTML = `
-      <div class="avatar ai-av">🧠</div>
-      <div class="bubble error-b">⚠ ${escHtml(msg)}</div>`;
-    area.appendChild(div);
-    area.scrollTop = area.scrollHeight;
-  }
-
-  // ── Send logic ────────────────────────────────────────────────────────────
-
-  async function sendMessage() {
-    if (isGenerating) return;
-    const textarea = document.getElementById('promptInput');
-    const prompt = textarea.value.trim();
-    if (!prompt) return;
-
-    const maxTokens = parseInt(document.getElementById('maxTokens').value);
-    const temperature = parseFloat(document.getElementById('temperature').value);
-    const topP = parseFloat(document.getElementById('topP').value);
-    const doSample = document.getElementById('doSample').checked;
-    const systemPrompt = document.getElementById('systemPrompt').value.trim();
-
-    // Render user bubble
-    const userHtml = attachedFile
-      ? `<img src="${document.getElementById('imageThumb').src}"
-              style="max-width:260px;border-radius:8px;display:block;margin-bottom:8px;" />
-         ${escHtml(prompt)}`
-      : escHtml(prompt);
-    appendMessage('user', userHtml, new Date().toLocaleTimeString());
-
-    textarea.value = '';
-    autoResize(textarea);
-    const fileSnapshot = attachedFile;
-    removeImage();
-
-    isGenerating = true;
-    document.getElementById('sendBtn').disabled = true;
-    appendThinking();
-
-    try {
-      let data;
-      const t0 = Date.now();
-
-      if (fileSnapshot) {
-        const form = new FormData();
-        form.append('prompt', prompt);
-        form.append('max_new_tokens', maxTokens);
-        form.append('temperature', temperature);
-        form.append('file', fileSnapshot);
-        const res = await fetch(`${API}/generate/vision/upload`, { method: 'POST', body: form });
-        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-        data = await res.json();
-      } else {
-        const body = {
-          prompt, max_new_tokens: maxTokens, temperature, top_p: topP, do_sample: doSample,
-          chat_id: currentChatId,
-        };
-        if (systemPrompt) body.system_prompt = systemPrompt;
-        const res = await fetch(`${API}/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-        data = await res.json();
-        if (data.chat_id) {
-          currentChatId = data.chat_id;
-          loadChatList();
-        }
-      }
-
-      removeThinking();
-      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-      appendMessage('assistant', renderMarkdown(data.generated_text),
-        `${data.tokens_generated} tokens · ${elapsed}s`);
-    } catch (err) {
-      removeThinking();
-      appendError(err.message);
-    } finally {
-      isGenerating = false;
-      document.getElementById('sendBtn').disabled = false;
-      textarea.focus();
-    }
-  }
-
-  function clearChat() {
-    const area = document.getElementById('chatArea');
-    area.innerHTML = `
-      <div class="empty-state" id="emptyState">
-        <div class="empty-icon">✦</div>
-        <div class="empty-title">AI-FABLE is ready</div>
-        <div class="empty-sub">Ask anything — code, reasoning, or drop an image for multimodal analysis.</div>
-      </div>`;
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  function handleKey(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  }
-
-  function autoResize(el) {
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
-  }
-</script>
 </body>
 </html>
