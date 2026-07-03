@@ -4,170 +4,29 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI-FABLE — Loading…</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #0d0f14; --surface: #161a23; --border: #2a3045;
-      --accent: #6c63ff; --text: #e4e8f0; --muted: #6b7a99;
-      --green: #3ecf8e;
-    }
-    body {
-      background: var(--bg); color: var(--text);
-      font-family: 'Inter', system-ui, sans-serif;
-      height: 100vh; display: flex; align-items: center; justify-content: center;
-    }
-    .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 20px; padding: 48px 56px;
-      display: flex; flex-direction: column; align-items: center; gap: 28px;
-      max-width: 420px; width: 90%; text-align: center;
-    }
-    .logo-ring {
-      width: 72px; height: 72px; border-radius: 20px;
-      background: linear-gradient(135deg, var(--accent), #a855f7);
-      display: flex; align-items: center; justify-content: center; font-size: 36px;
-      box-shadow: 0 0 40px rgba(108,99,255,.35);
-      animation: pulse 2.4s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 30px rgba(108,99,255,.3); }
-      50%       { box-shadow: 0 0 55px rgba(108,99,255,.6); }
-    }
-    h1 { font-size: 26px; font-weight: 700; letter-spacing: .5px; }
-    .sub { font-size: 13px; color: var(--muted); line-height: 1.6; }
-
-    /* Progress bar */
-    .bar-wrap {
-      width: 100%; background: var(--border); border-radius: 99px;
-      height: 6px; overflow: hidden;
-    }
-    .bar {
-      height: 100%; border-radius: 99px;
-      background: linear-gradient(90deg, var(--accent), #a855f7);
-      width: 0%; animation: indeterminate 1.8s ease-in-out infinite;
-    }
-    @keyframes indeterminate {
-      0%   { margin-left: 0%;   width: 0%; }
-      30%  { margin-left: 0%;   width: 60%; }
-      70%  { margin-left: 40%;  width: 60%; }
-      100% { margin-left: 100%; width: 0%; }
-    }
-
-    .status {
-      font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace;
-    }
-    .status span { color: var(--accent); }
-
-    .steps { display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left; }
-    .step {
-      display: flex; align-items: center; gap: 10px;
-      font-size: 12px; color: var(--muted);
-    }
-    .step-dot {
-      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-      background: var(--border); transition: background .4s;
-    }
-    .step.done .step-dot  { background: var(--green); }
-    .step.active .step-dot {
-      background: var(--accent);
-      animation: blink .9s ease-in-out infinite;
-    }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
-    .step.done  { color: var(--text); }
-    .step.active { color: var(--text); }
-  </style>
+  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/loading.css" />
+  <script src="/static/js/loading.js" defer></script>
 </head>
 <body>
 <div class="card">
   <div class="logo-ring">🧠</div>
+
   <div>
     <h1>AI-FABLE</h1>
     <p class="sub" style="margin-top:6px">Gemma-4 12B · Coder · Fable5</p>
   </div>
 
   <div class="steps" id="steps">
-    <div class="step done"  id="s0"><div class="step-dot"></div> Server listening on :8080</div>
+    <div class="step done"   id="s0"><div class="step-dot"></div> Server listening on :8080</div>
     <div class="step active" id="s1"><div class="step-dot"></div> Connecting to Ollama…</div>
-    <div class="step"       id="s2"><div class="step-dot"></div> Downloading model (GGUF, ~7 GB)…</div>
-    <div class="step"       id="s3"><div class="step-dot"></div> Ready for inference</div>
+    <div class="step"        id="s2"><div class="step-dot"></div> Downloading model (GGUF, ~7 GB)…</div>
+    <div class="step"        id="s3"><div class="step-dot"></div> Ready for inference</div>
   </div>
 
   <div class="bar-wrap"><div class="bar"></div></div>
 
   <div class="status">Checking model status… <span id="elapsed">0s</span></div>
 </div>
-
-<script>
-  const start = Date.now();
-  let attempt = 0;
-
-  function fmt(ms) {
-    const s = Math.floor(ms / 1000);
-    return s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
-  }
-
-  function setStep(phase) {
-    const s1 = document.getElementById('s1');
-    const s2 = document.getElementById('s2');
-
-    if (phase === 'waiting_for_ollama' || phase === 'starting') {
-      s1.className = 'step active';
-      s2.className = 'step';
-    } else if (phase === 'pulling' || phase.includes('%')) {
-      s1.className = 'step done';
-      s2.className = 'step active';
-    }
-  }
-
-  async function poll() {
-    attempt++;
-    document.getElementById('elapsed').textContent = fmt(Date.now() - start);
-
-    try {
-      const res = await fetch('/ready');
-
-      if (res.ok) {
-        document.getElementById('s1').className = 'step done';
-        document.getElementById('s2').className = 'step done';
-        document.getElementById('s3').className = 'step done active';
-        document.querySelector('.status').innerHTML =
-          '✅ Model loaded — <span>redirecting…</span>';
-        setTimeout(() => { window.location.href = '/'; }, 800);
-        return;
-      }
-
-      if (res.status === 500) {
-        const body = await res.json().catch(() => ({ detail: 'Unknown error' }));
-        document.getElementById('s2').style.color = 'var(--red)';
-        document.getElementById('s2').querySelector('.step-dot').style.background = 'var(--red)';
-
-        document.querySelector('.bar').style.animation = 'none';
-        document.querySelector('.bar').style.background = 'var(--red)';
-        document.querySelector('.bar').style.width = '100%';
-
-        document.querySelector('.status').innerHTML =
-          `<span style="color:var(--red)">Error: ${body.detail}</span><br>
-           <span style="font-size:11px">Check <code>docker logs AI-FABLE</code> or the terminal running run_local.sh</span>`;
-        return;
-      }
-
-      // 503 — still loading, keep polling. detail carries the phase / pull progress.
-      const body = await res.json().catch(() => ({}));
-      const phase = body.detail || 'loading';
-      setStep(phase);
-      document.querySelector('.status').innerHTML =
-        `${phase} &nbsp;·&nbsp; <span>${fmt(Date.now() - start)}</span>`;
-
-    } catch (_) {
-      document.querySelector('.status').innerHTML =
-        `Connecting… <span>${fmt(Date.now() - start)}</span>`;
-    }
-
-    const delay = attempt < 5 ? 1000 : 3000;
-    setTimeout(poll, delay);
-  }
-
-  poll();
-</script>
 </body>
 </html>

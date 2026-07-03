@@ -1,0 +1,25 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d0f14;
+  --surface:   #161a23;
+  --surface2:  #1e2330;
+  --border:    #2a3045;
+  --accent:    #6c63ff;
+  --accent-h:  #8a83ff;
+  --green:     #3ecf8e;
+  --red:       #f87171;
+  --yellow:    #fbbf24;
+  --text:      #e4e8f0;
+  --muted:     #6b7a99;
+  --radius:    12px;
+  --font:      'Inter', system-ui, sans-serif;
+  --mono:      'JetBrains Mono', 'Fira Code', monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
